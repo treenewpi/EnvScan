@@ -1,0 +1,3 @@
+-keep class fk.envscan.NativeBridge { *; }
+-keep class fk.envscan.IIsolate { *; }
+-keep class fk.envscan.IIsolate$Stub { *; }

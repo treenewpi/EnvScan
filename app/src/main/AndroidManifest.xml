@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_launcher_foreground"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.EnvScan"
+        android:extractNativeLibs="true"
+        android:zygotePreloadName="fk.envscan.AppZygote">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.EnvScan">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- isolatedProcess：跑在 isolated_app 域里，selinux_iso 才有隔离域可比 -->
+        <service
+            android:name=".IsolateService"
+            android:exported="false"
+            android:isolatedProcess="true"
+            android:process=":iso" />
+        <service
+            android:name=".TwinService"
+            android:exported="false"
+            android:process=":twin" />
+        <!-- useAppZygote：让系统拉起本应用的 app zygote，主进程再检查它 -->
+        <service
+            android:name=".ZygoteProbeService"
+            android:exported="false"
+            android:isolatedProcess="true"
+            android:useAppZygote="true" />
+    </application>
+</manifest>
