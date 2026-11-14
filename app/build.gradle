@@ -33,10 +33,20 @@ android {
         }
     }
 
+    signingConfigs {
+        release {
+            storeFile rootProject.file("keystore/envscan-release.jks")
+            storePassword "envscan123"
+            keyAlias "envscan"
+            keyPassword "envscan123"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
+            signingConfig signingConfigs.release
         }
     }
 

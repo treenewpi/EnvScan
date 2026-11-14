@@ -59,10 +59,22 @@ app/src/main/
 需要 JDK 17、Android SDK（compileSdk 35）、NDK 27。
 
 ```bash
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug     # 调试包
+./gradlew :app:assembleRelease   # 发布包（已配置签名）
 ```
 
-产物：`app/build/outputs/apk/debug/app-debug.apk`（`fk.envscan`），仅 arm64-v8a。
+产物：
+
+- `app/build/outputs/apk/debug/app-debug.apk`
+- `app/build/outputs/apk/release/app-release.apk`
+
+仓库里同时放了构建好的发布包：`dist/envscan-1.0.0.apk`（`fk.envscan`，versionName 1.0.0，
+仅 arm64-v8a）。发布签名用的是仓库内的 `keystore/envscan-release.jks`
+（alias `envscan`，口令 `envscan123`），这样任何人都能复现同一个签名。
+
+```bash
+adb install -r dist/envscan-1.0.0.apk
+```
 
 ## 报告
 
