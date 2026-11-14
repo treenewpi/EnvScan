@@ -105,10 +105,10 @@ std::string run_all() {
             const bool nnp_only =
                 p.detail.find("isolate NoNewPrivs=0") != std::string::npos && !other_violation;
             if (no_iso) {
-                p.detail += "\n[EnvScan] :iso 隔离进程没有起来，无 isolated 域可比";
+                p.detail += "\n[EnvScan] :iso did not start; no isolated domain to compare";
                 o += item_json(rows[i].id, rows[i].title, "NA", p.detail);
             } else if (nnp_only) {
-                p.detail += "\n[EnvScan] :iso 由 AMS 拉起，NoNewPrivs 不从 zygote 继承，按 note 处理";
+                p.detail += "\n[EnvScan] :iso is spawned by AMS, so NoNewPrivs is not inherited; reported as a note";
                 o += item_json(rows[i].id, rows[i].title, "PASS", p.detail);
             } else {
                 o += item_json(rows[i].id, rows[i].title, p.hit ? "FAIL" : "PASS", p.detail);
@@ -122,7 +122,7 @@ std::string run_all() {
             (p.detail.find("unavailable: empty") != std::string::npos ||
              p.detail.find("Location CRC map is empty") != std::string::npos);
         if (crc_channel_empty) {
-            p.detail += "\n[EnvScan] iso/twin 快照为空，该侧 crc 未实际比对";
+            p.detail += "\n[EnvScan] iso/twin snapshot empty; that side of the crc was not compared";
             o += item_json(rows[i].id, rows[i].title, "NA", p.detail);
             continue;
         }

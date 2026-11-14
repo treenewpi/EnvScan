@@ -2987,7 +2987,7 @@ Probe probe_rom_tamper() {
                " hardware=" + hw + " lastfp=" + last.substr(0, 40) + " flash.locked=" + fl +
                " verifiedbootstate=" + vb;
     if (gp_split) p.detail += "\ngetprop fingerprint!=" + gp.substr(0, 60);
-    if (p.hit) p.detail += "\n当前设备机型&ROM可能被修改!";
+    if (p.hit) p.detail += "\nDevice model / ROM may have been modified!";
     return p;
 }
 

@@ -44,7 +44,14 @@ object ExtraChecks {
         out += injectionServiceCheck(ctx, p)
         out += zygiskExclusionCheck()
         out += tombstoneCheck()
-        return out
+        // Titles come from resources when a `title_<id>` entry exists, so the list
+        // follows the system language; unknown ids keep their probe title.
+        return out.map { it.copy(title = localizedTitle(ctx, it)) }
+    }
+
+    private fun localizedTitle(ctx: Context, item: ScanItem): String {
+        val res = ctx.resources.getIdentifier("title_" + item.id.replace('.', '_'), "string", ctx.packageName)
+        return if (res != 0) ctx.getString(res) else item.title
     }
 
     // ---------------------------------------------------------------- props
@@ -89,7 +96,7 @@ object ExtraChecks {
             .firstOrNull { it.split(' ').getOrNull(4) == "/data" } ?: ""
         val fail = state != "encrypted"
         return item(
-            "storage.crypto", "Identity", "数据未加密 / mount 参数被改",
+            "storage.crypto", "Identity", "Data not encrypted / mount options changed",
             fail,
             "ro.crypto.state=$state type=$type\n/data mount=$data",
         )
@@ -116,7 +123,7 @@ object ExtraChecks {
             filter.contains("verify-none", true) ||
             flags.contains("--compiler-filter=verify-none", true)
         return item(
-            "runtime.art", "Integrity", "ART 参数异常",
+            "runtime.art", "Integrity", "ART parameters abnormal",
             bad,
             "heapsize=${p["dalvik.vm.heapsize"]} heapgrowthlimit=${p["dalvik.vm.heapgrowthlimit"]} " +
                 "dex2oat-filter=$filter flags=$flags",
@@ -137,7 +144,7 @@ object ExtraChecks {
         }.getOrDefault(emptyList())
         val fail = hits.isNotEmpty() || oddOwner.isNotEmpty()
         return item(
-            "boot.init_rc", "Integrity", "init.rc 被修改",
+            "boot.init_rc", "Integrity", "init.rc modified",
             fail,
             "init.rc hits=${hits.ifEmpty { listOf("none") }} non_root=${oddOwner.ifEmpty { listOf("none") }} " +
                 "size=${text.length}",
@@ -156,7 +163,7 @@ object ExtraChecks {
         val fail = boot == "disabled" || (!policy && vers.isEmpty()) ||
             (sysLabel.isNotBlank() && !sysLabel.contains("system_file"))
         return item(
-            "system.permission", "Integrity", "权限系统异常",
+            "system.permission", "Integrity", "Permission system anomaly",
             fail,
             "policyvers=$vers policyload=$loaded policy=$policy boot=$boot " +
                 "system=$sysLabel sh=$shLabel",
@@ -186,7 +193,7 @@ object ExtraChecks {
             }
         }
         return item(
-            "root.su_process", "Root", "找到 su 进程",
+            "root.su_process", "Root", "su process found",
             hits.isNotEmpty(), hits.ifEmpty { listOf("no su/magisk process") }.joinToString("\n"),
         )
     }
@@ -233,7 +240,7 @@ object ExtraChecks {
         val maps = ScanEngine.zygoteMaps
         if (pid <= 0 || ctx.isEmpty()) {
             return item(
-                "zygote.behavior", "Injection", "zygote 行为异常",
+                "zygote.behavior", "Injection", "Zygote behaviour abnormal",
                 false, "app_zygote child pid=${ScanEngine.zygotePpid} ctx=(empty)",
                 na = true,
             )
@@ -243,7 +250,7 @@ object ExtraChecks {
         val ppidOk = pid > 0
         val fail = !isIsolated || !ppidOk
         return item(
-            "zygote.behavior", "Injection", "zygote 行为异常",
+            "zygote.behavior", "Injection", "Zygote behaviour abnormal",
             fail,
             "app_zygote_ppid=$pid\nchild_se=$ctx maps_bytes=${maps.length}\n" +
                 "isolated_domain=$isIsolated ppid_ok=$ppidOk",
@@ -261,8 +268,8 @@ object ExtraChecks {
         val maps = ScanEngine.zygoteMaps
         if (maps.isEmpty()) {
             return item(
-                "zygote.injected", "Injection", "zygote 被注入",
-                false, "app_zygote child maps 为空（服务未起来）", na = true,
+                "zygote.injected", "Injection", "Zygote injected",
+                false, "app_zygote child maps empty (service not running)", na = true,
             )
         }
         val hits = mutableListOf<String>()
@@ -279,7 +286,7 @@ object ExtraChecks {
         }
         val fail = hits.isNotEmpty() || foreign.isNotEmpty()
         return item(
-            "zygote.injected", "Injection", "zygote 被注入",
+            "zygote.injected", "Injection", "Zygote injected",
             fail,
             "app_zygote child maps_bytes=${maps.length} libs=${soPaths(maps).size}\n" +
                 "mark_hits=${hits.ifEmpty { listOf("none") }}\nforeign=${foreign.ifEmpty { listOf("none") }}",
@@ -320,7 +327,7 @@ object ExtraChecks {
         val extra = (acts - expectedActs) + (svcs - expectedSvcs)
         val missing = (expectedActs - acts) + (expectedSvcs - svcs)
         return item(
-            "manifest.graph", "Integrity", "Manifest 组件图",
+            "manifest.graph", "Integrity", "Manifest components",
             extra.isNotEmpty() || missing.isNotEmpty(),
             "activities=$acts\nservices=$svcs\nextra=$extra missing=$missing",
         )
@@ -346,7 +353,7 @@ object ExtraChecks {
             val chain = ks.getCertificateChain(alias) ?: emptyArray()
             if (chain.isEmpty()) {
                 return item(
-                    "attest.play_integrity", "TEE", "Play Integrity（本地判定）",
+                    "attest.play_integrity", "TEE", "Play Integrity (local)",
                     false, "attestation chain empty", warn = true,
                 )
             }
@@ -365,7 +372,7 @@ object ExtraChecks {
             val verified = if (rot != null) rot.verifiedBootState == 0 else propGreen
             val fail = software || !locked || !verified
             item(
-                "attest.play_integrity", "TEE", "Play Integrity（本地判定）",
+                "attest.play_integrity", "TEE", "Play Integrity (local)",
                 fail,
                 "server=not_configured (local key-attestation fallback)\n" +
                     "chain=${chain.size} root=$rootDn rot=$rot locked=$locked verified=$verified" +
@@ -373,7 +380,7 @@ object ExtraChecks {
             )
         }.getOrElse { e ->
             item(
-                "attest.play_integrity", "TEE", "Play Integrity（本地判定）",
+                "attest.play_integrity", "TEE", "Play Integrity (local)",
                 false, "attestation unavailable: ${e.javaClass.simpleName}: ${e.message}",
                 warn = true,
             )
@@ -397,7 +404,7 @@ object ExtraChecks {
         val policyUnreadable = vers.isEmpty() && policy.isEmpty()
         val fail = boot == "disabled" || !fsPresent || contextBad
         return item(
-            "selinux.policy_file", "Integrity", "SELinux policy 文件",
+            "selinux.policy_file", "Integrity", "SELinux policy file",
             fail,
             "policyvers=$vers policy_bytes=${policy.length} checkreqprot=$checkreq " +
                 "build.selinux=$buildSelinux fs=$fsPresent\n" +
@@ -426,7 +433,7 @@ object ExtraChecks {
             pkgs.any { it.contains("shamiko") }
         val fail = hasManager && !shamiko
         return item(
-            "hide.shamiko_missing", "Hide", "Shamiko 缺失",
+            "hide.shamiko_missing", "Hide", "Shamiko missing",
             fail,
             "manager=$hasManager shamiko=$shamiko",
         )
@@ -475,7 +482,7 @@ object ExtraChecks {
             }
         }
         return item(
-            "inject.service", "Injection", "注入服务",
+            "inject.service", "Injection", "Injection service",
             hits.isNotEmpty() || procHits.isNotEmpty(),
             "packages=$hits\nprocesses=$procHits",
         )
@@ -488,7 +495,7 @@ object ExtraChecks {
         val hit = listOf("zygisk", "libzygisk", "lsposed", "LSPHooker")
             .filter { maps.contains(it, true) }
         return item(
-            "hide.zygisk_exclusion", "Injection", "Zygisk 排除列表",
+            "hide.zygisk_exclusion", "Injection", "Zygisk exclusion list",
             hit.isNotEmpty(),
             "self_maps_hits=${hit.ifEmpty { listOf("none") }}",
         )

@@ -2,6 +2,9 @@ package fk.envscan
 
 enum class Status { PASS, FAIL, WARN, NA }
 
+/** Overall verdict; the UI maps it to a localized string. */
+enum class Verdict { HOOKED, ABNORMAL, NORMAL }
+
 data class ScanItem(
     val id: String,
     val group: String,
@@ -19,12 +22,12 @@ data class ScanReport(
     val warn: Int get() = items.count { it.status == Status.WARN }
     val pass: Int get() = items.count { it.status == Status.PASS }
 
-    val verdict: String
+    val verdict: Verdict
         get() = when {
             items.any { it.id.startsWith("integ.libc") && it.status == Status.FAIL } ||
                 items.any { it.id.contains("maps") && it.status == Status.FAIL && it.detail.contains("hook", true) } ->
-                "当前程序可能已被 Hook / 修改"
-            fail > 0 -> "环境异常"
-            else -> "环境正常"
+                Verdict.HOOKED
+            fail > 0 -> Verdict.ABNORMAL
+            else -> Verdict.NORMAL
         }
 }

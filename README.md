@@ -1,91 +1,96 @@
 # EnvScan
 
-Android 设备环境检测 App：一次性跑完 108 项检查，按风险优先级列出结果，点开每一项能看到
-检测手法、命中原因和原始证据。
+Android environment inspection app. It runs 108 checks in one pass, lists the results
+risk-first, and every item opens into how it is checked, why it matched and the raw evidence.
 
-| 总览 | 详情 |
+| Overview | Detail |
 | --- | --- |
-| ![总览](docs/screenshot.png) | ![详情](docs/detail.png) |
+| ![overview](docs/screenshot.png) | ![detail](docs/detail.png) |
 
-![其余检查](docs/passing.png)
+![other checks](docs/passing.png)
 
-## 能查什么
+## What it checks
 
-| 分组 | 覆盖内容 |
+| Group | Coverage |
 | --- | --- |
-| Root | su / Magisk / KernelSU / APatch 痕迹、模块目录、Magic Mount、mount 与分区、hide uid |
-| Injection | Zygisk、Xposed/LSPosed、Riru、Frida、inline hook、ART 方法替换、注入服务、RVX |
-| Hide | TracerPid、maps/map_files 隐藏、主进程与 `:iso` 的差异、Zygisk 排除列表、Shamiko |
-| Integrity | libc/linker/libart 可执行段与文件比对、`/proc` 匿名可执行页、SELinux、init.rc、APEX、seccomp |
-| Identity | fingerprint / vbmeta / verified boot / 解锁状态 / test-keys / 属性序列号 / Key Attestation |
-| Debug | adb、开发者选项、通知监听、可调试标记、tombstone |
-| Network / TEE / Emulator | VPN、网络信任链、Play Integrity 本地判定、qemu 痕迹 |
+| Root | su / Magisk / KernelSU / APatch traces, module directories, Magic Mount, mounts and partitions, hidden uid |
+| Injection | Zygisk, Xposed/LSPosed, Riru, Frida, inline hooks, ART method replacement, injection services, RVX |
+| Hiding | TracerPid, maps/map_files hiding, main-vs-`:iso` differences, Zygisk exclusion list, Shamiko |
+| Integrity | libc/linker/libart executable segments vs files, anonymous executable pages, SELinux, init.rc, APEX, seccomp |
+| Identity | fingerprint, vbmeta, verified boot, unlock state, test-keys, property serial, Key Attestation |
+| Debug | adb, developer options, notification listeners, debuggable flags, tombstones |
+| Network / TEE / Emulator | VPN, network trust anchors, local Play Integrity judgement, qemu traces |
 
-状态分四种：
+Each item ends up in one of four states:
 
-- **FAIL** 命中风险
-- **WARN** 可疑但不改变总评
-- **PASS** 未命中
-- **NA** 本机拿不到判定所需数据（不会伪造成 PASS）
+- **FAIL** a risk was detected
+- **WARN** suspicious, but it does not change the overall verdict
+- **PASS** nothing detected
+- **NA** the device or the sandbox did not expose enough data to decide (never faked as PASS)
 
-只有出现 FAIL 时总评才显示“环境异常”。
+The overall verdict only turns abnormal when at least one item fails.
 
-## 结构
+## Layout
 
 ```
 app/src/main/
 ├── cpp/
-│   ├── envscan.cpp          JNI 适配层
-│   └── probes/              检测技术库（纯 C++，无 Android 依赖）
+│   ├── envscan.cpp          thin JNI adapter
+│   └── probes/              detection library (plain C++, no Android deps)
 ├── java/fk/envscan/
-│   ├── MainActivity.kt      Compose UI（总评卡 / 风险列表 / 详情弹窗）
-│   ├── ScanEngine.kt        扫描编排、报告落盘
-│   ├── ExtraChecks.kt       产品语义层检查（crypto/ART/init.rc/zygote/tombstone…）
-│   ├── CheckGuide.kt        每项的检测手法与原因文案
-│   └── IsolateService.kt    `:iso` / `:twin` / app zygote 三个辅助进程
-└── aidl/                    `:iso` 服务的 Binder 接口
+│   ├── MainActivity.kt      Compose UI (verdict card, risk list, detail dialog)
+│   ├── ScanEngine.kt        scan orchestration, report export
+│   ├── ExtraChecks.kt       product-level checks (crypto/ART/init.rc/zygote/tombstone…)
+│   ├── CheckGuide.kt        per-item "how / why" text, loaded from resources
+│   └── IsolateService.kt    `:iso`, `:twin` and app-zygote helper processes
+├── aidl/                    Binder interface for the `:iso` services
+└── res/values/strings.xml   all user-facing text
 ```
 
-几个关键点：
+A few notes on the design:
 
-- 检测技术集中在 `cpp/probes/`，`all_techniques()` 返回全部技术项，App 只负责编排和展示；
-- `:iso` 是 `isolatedProcess`，`selinux_iso` 用它拿 `isolated_app` 域做对比；
-- `ZygoteProbeService` 用 `useAppZygote`，让系统拉起本应用的 app zygote，主进程通过
-  它的子进程看 zygote 的地址空间，判断 zygote 是否被注入；
-- `:iso` / `:twin` 各自跑一遍可执行段校验，主进程把三份结果放一起比对（`crc_locality`）。
+- detection techniques live in `cpp/probes/`; `all_techniques()` returns the full list and the
+  app only orchestrates and renders it;
+- `:iso` runs as `isolatedProcess`, which gives `selinux_iso` an `isolated_app` domain to compare;
+- `ZygoteProbeService` uses `useAppZygote`, so the system forks this app's own app zygote and the
+  main process can inspect its address space through the child to spot zygote injection;
+- `:iso` and `:twin` each run the executable-segment check, and the main process compares all
+  three results (`crc_locality`).
 
-## 构建
+All user-facing strings live in `res/values/strings.xml`, so the UI follows the system language;
+add `res/values-<lang>/strings.xml` to ship another locale.
 
-需要 JDK 17、Android SDK（compileSdk 35）、NDK 27。
+## Build
+
+Requires JDK 17, Android SDK (compileSdk 35) and NDK 27.
 
 ```bash
-./gradlew :app:assembleDebug     # 调试包
-./gradlew :app:assembleRelease   # 发布包（已配置签名）
+./gradlew :app:assembleDebug     # debug build
+./gradlew :app:assembleRelease   # release build (signing is configured)
 ```
 
-产物：
+Artifacts:
 
 - `app/build/outputs/apk/debug/app-debug.apk`
 - `app/build/outputs/apk/release/app-release.apk`
 
-仓库里同时放了构建好的发布包：`dist/envscan-1.0.0.apk`（`fk.envscan`，versionName 1.0.0，
-仅 arm64-v8a）。发布签名用的是仓库内的 `keystore/envscan-release.jks`
-（alias `envscan`，口令 `envscan123`），这样任何人都能复现同一个签名。
+A prebuilt release is checked in at `dist/envscan-1.0.0.apk` (`fk.envscan`, versionName 1.0.0,
+arm64-v8a only). Release signing uses `keystore/envscan-release.jks` (alias `envscan`,
+password `envscan123`) so the build is reproducible.
 
 ```bash
 adb install -r dist/envscan-1.0.0.apk
 ```
 
-## 报告
+## Report
 
-每次扫描会写一份 JSON 到
-`/sdcard/Android/data/fk.envscan/files/envscan-report.json`：
+Every scan writes a JSON report to `/sdcard/Android/data/fk.envscan/files/envscan-report.json`:
 
 ```json
 {
   "package": "fk.envscan",
-  "verdict": "环境异常",
-  "fail": 5, "warn": 0, "pass": 103,
+  "verdict": "abnormal",
+  "fail": 9, "warn": 0, "pass": 98,
   "items": [
     {"id": "elf_crc", "group": "Integrity", "title": "Main Crc Check Error",
      "status": "FAIL", "detail": "checked=3 issues=1 ...", "source": "native"}
@@ -93,7 +98,8 @@ adb install -r dist/envscan-1.0.0.apk
 }
 ```
 
-## 说明
+## Notes
 
-检测结果只反映扫描时刻本进程能看到的东西。不同 ROM、不同 Android 版本对 `/proc`、SELinux、
-APEX 的可见性差别很大，拿不到数据的项会标 NA 而不是硬判。
+Results only reflect what the process can see at scan time. Visibility of `/proc`, SELinux and
+APEX differs a lot between ROMs and Android versions; when the data is not available the item is
+marked NA instead of being guessed.

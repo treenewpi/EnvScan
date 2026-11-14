@@ -142,9 +142,9 @@ object ScanEngine {
         items += ScanItem(
             id = "apps.managers",
             group = "Root",
-            title = "Root / 框架管理器包名",
+            title = "Root / framework manager packages",
             status = if (hits.isEmpty()) Status.PASS else Status.FAIL,
-            detail = if (hits.isEmpty()) "QUERY 未找到常见管理器" else hits.joinToString("\n") { "${it.second} (${it.first})" },
+            detail = if (hits.isEmpty()) "QUERY found no known manager" else hits.joinToString("\n") { "${it.second} (${it.first})" },
             source = "java",
         )
         items += xp.item
@@ -198,7 +198,7 @@ object ScanEngine {
             item = ScanItem(
                 id = "inject.xposed_pm",
                 group = "Injection",
-                title = "Xposed 模块 (launcher meta / class)",
+                title = "Xposed module (launcher meta / class)",
                 status = if (hits.isEmpty() && !xposedCls && !lspCls) Status.PASS else Status.FAIL,
                 detail = buildString {
                     appendLine("xposedminversion=${hits.ifEmpty { listOf("none") }}")
@@ -236,7 +236,7 @@ object ScanEngine {
         return ScanItem(
             id = "apps.pm_ways",
             group = "Root",
-            title = "PM 四路一致性",
+            title = "PackageManager cross-check",
             status = if (diffs.isEmpty()) Status.PASS else Status.FAIL,
             detail = buildString {
                 appendLine("direct=${direct.size} launchable=${viaIntent.size} shell=${viaShell.size}")
@@ -268,26 +268,26 @@ object ScanEngine {
         }.getOrDefault(false)
         return listOf(
             ScanItem(
-                id = "debug.adb", group = "Debug", title = "USB 调试",
+                id = "debug.adb", group = "Debug", title = "USB debugging",
                 // ADB 是调试开关，不等于 root/篡改；给 WARN，避免正常测试机被判成“风险”。
                 status = if (adb == 1) Status.WARN else Status.PASS,
                 detail = "Settings.Global.ADB_ENABLED=$adb", source = "java",
             ),
             ScanItem(
-                id = "debug.developer", group = "Debug", title = "开发者选项",
+                id = "debug.developer", group = "Debug", title = "Developer options",
                 status = if (dev == 1) Status.WARN else Status.PASS,
                 detail = "DEVELOPMENT_SETTINGS_ENABLED=$dev", source = "java",
             ),
             ScanItem(
-                id = "debug.mock_location", group = "Debug", title = "模拟定位 AppOp",
+                id = "debug.mock_location", group = "Debug", title = "Mock location AppOp",
                 status = if (mock) Status.WARN else Status.PASS,
                 detail = "OPSTR_MOCK_LOCATION=${if (mock) "ALLOWED" else "denied/default"}",
                 source = "java",
             ),
             ScanItem(
-                id = "debug.accessibility", group = "Debug", title = "无障碍服务",
+                id = "debug.accessibility", group = "Debug", title = "Accessibility services",
                 status = if (accessibility.isBlank()) Status.PASS else Status.WARN,
-                detail = accessibility.ifBlank { "(空)" }, source = "java",
+                detail = accessibility.ifBlank { "(empty)" }, source = "java",
             ),
             run {
                 val nonSystem = listeners.split(':').filter { it.isNotBlank() }.filter { comp ->
@@ -296,10 +296,10 @@ object ScanEngine {
                     ai != null && (ai.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) == 0
                 }
                 ScanItem(
-                    id = "debug.notification_listener", group = "Debug", title = "通知监听服务",
+                    id = "debug.notification_listener", group = "Debug", title = "Notification listeners",
                     status = if (nonSystem.isNotEmpty()) Status.WARN else Status.PASS,
                     detail = buildString {
-                        appendLine("listeners=${listeners.ifBlank { "(空)" }}")
+                        appendLine("listeners=${listeners.ifBlank { "(empty)" }}")
                         append("non_system=${nonSystem.ifEmpty { listOf("none") }}")
                     },
                     source = "java",
@@ -318,7 +318,7 @@ object ScanEngine {
         val dirs = (1..9).mapNotNull { n -> File("/data/user/$n").takeIf { it.exists() }?.path }
         val status = if (uid != 0 || dirs.isNotEmpty()) Status.WARN else Status.PASS
         return ScanItem(
-            id = "hide.work_profile", group = "Hide", title = "工作资料 / 多用户",
+            id = "hide.work_profile", group = "Hide", title = "Work profile / multi-user",
             status = status,
             detail = "myUserId=$uid visible_data_users=$dirs", source = "java",
         )
@@ -360,7 +360,7 @@ object ScanEngine {
             val teeFail = false
             NativeBridge.nativeSetAttest(teeFail, aosp, keybox, detail.toString())
         }.onFailure { e ->
-            NativeBridge.nativeSetAttest(true, false, true, "attestation 失败: ${e.javaClass.simpleName}: ${e.message}")
+            NativeBridge.nativeSetAttest(true, false, true, "attestation failed: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
@@ -428,7 +428,7 @@ object ScanEngine {
         ScanItem(
             id = "hide.isolate_tracer",
             group = "Hide",
-            title = "隔离进程 TracerPid",
+            title = "Isolate process TracerPid",
             status = when {
                 tracer < 0 -> Status.NA
                 tracer > 0 -> Status.FAIL
@@ -453,7 +453,7 @@ object ScanEngine {
         }
         val root = JSONObject().apply {
             put("package", "fk.envscan")
-            put("verdict", report.verdict)
+            put("verdict", report.verdict.name.lowercase())
             put("fail", report.fail)
             put("warn", report.warn)
             put("pass", report.pass)

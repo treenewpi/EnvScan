@@ -62,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -149,8 +150,8 @@ class MainActivity : ComponentActivity() {
                     onScan = { vm.run(this) },
                     onExport = {
                         val r = vm.report.value
-                        if (r == null) Toast.makeText(this, "先扫描一次", Toast.LENGTH_SHORT).show()
-                        else Toast.makeText(this, ScanEngine.writeReport(this, r) ?: "导出失败", Toast.LENGTH_LONG).show()
+                        if (r == null) Toast.makeText(this, getString(R.string.scan_first), Toast.LENGTH_SHORT).show()
+                        else Toast.makeText(this, ScanEngine.writeReport(this, r) ?: getString(R.string.export_failed), Toast.LENGTH_LONG).show()
                     },
                 )
             }
@@ -229,11 +230,11 @@ private fun TopBar(canExport: Boolean, onExport: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text("EnvScan", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
-            Text("环境检测", color = Sub, fontSize = 11.sp)
+            Text(stringResource(R.string.subtitle), color = Sub, fontSize = 11.sp)
         }
         if (canExport) {
             IconButton(onClick = onExport) {
-                Icon(Icons.Rounded.Download, contentDescription = "导出报告", tint = Sub)
+                Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.export_report), tint = Sub)
             }
         }
     }
@@ -253,10 +254,10 @@ private fun EmptyState(busy: Boolean, error: String?, onScan: () -> Unit) {
         }
         Spacer(Modifier.height(22.dp))
         Text("108", color = Ink, fontSize = 64.sp, fontWeight = FontWeight.Bold, letterSpacing = (-2).sp)
-        Text("项环境检查", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.checks_title, 108), color = Ink, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Root、注入、隐藏、完整性、身份、TEE 与调试环境。点开任意一条可以看到检测手法和判定原因。",
+            stringResource(R.string.intro),
             color = Sub,
             fontSize = 13.sp,
             lineHeight = 20.sp,
@@ -272,15 +273,15 @@ private fun EmptyState(busy: Boolean, error: String?, onScan: () -> Unit) {
             if (busy) {
                 CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("扫描中", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.scanning), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             } else {
                 Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("开始扫描", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.start_scan), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text("本地执行，不联网。结果只写在本机。", color = Gray, fontSize = 11.sp)
+        Text(stringResource(R.string.footer), color = Gray, fontSize = 11.sp)
         if (error != null) {
             Spacer(Modifier.height(16.dp))
             ErrorLine(error)
@@ -335,16 +336,16 @@ private fun ReportBody(
                     if (busy) {
                         CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("扫描中", fontSize = 13.sp)
+                        Text(stringResource(R.string.scanning), fontSize = 13.sp)
                     } else {
                         Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(7.dp))
-                        Text("重新扫描", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.rescan), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                 }
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    if (busy) "正在跑 80 个 probe" else "共 ${report.items.size} 项",
+                    if (busy) stringResource(R.string.probes_running, 80) else stringResource(R.string.items_total, report.items.size),
                     color = Sub,
                     fontSize = 12.sp,
                 )
@@ -354,11 +355,11 @@ private fun ReportBody(
             item(key = "error") { Box(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) { ErrorLine(error) } }
         }
         if (risks.isNotEmpty()) {
-            item(key = "risk-header") { SectionLabel("风险与可疑", risks.size, Red) }
+            item(key = "risk-header") { SectionLabel(stringResource(R.string.risk_header), risks.size, Red) }
             item(key = "risk-list") { CheckList(risks, onItem) }
         }
         item(key = "rest-header") {
-            SectionLabel(if (risks.isEmpty()) "全部检查" else "其余检查", rest.size, Sub)
+            SectionLabel(if (risks.isEmpty()) stringResource(R.string.all_checks) else stringResource(R.string.rest_checks), rest.size, Sub)
         }
         item(key = "rest-list") { CheckList(rest, onItem) }
         item(key = "tail") { Spacer(Modifier.height(28.dp)) }
@@ -386,7 +387,13 @@ private fun Verdict(report: ScanReport, na: Int) {
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    report.verdict,
+                    stringResource(
+                        when (report.verdict) {
+                            Verdict.HOOKED -> R.string.verdict_hooked
+                            Verdict.ABNORMAL -> R.string.verdict_bad
+                            Verdict.NORMAL -> R.string.verdict_ok
+                        },
+                    ),
                     color = Ink,
                     fontSize = 28.sp,
                     lineHeight = 32.sp,
@@ -394,7 +401,7 @@ private fun Verdict(report: ScanReport, na: Int) {
                     letterSpacing = (-0.5).sp,
                 )
                 Text(
-                    "${report.items.size} 项检查，${report.fail + report.warn} 项待处理",
+                    stringResource(R.string.summary, report.items.size, report.fail + report.warn),
                     color = Sub,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp),
@@ -405,12 +412,19 @@ private fun Verdict(report: ScanReport, na: Int) {
         RatioBar(report.fail, report.warn, report.pass, na)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("${report.fail} 风险", color = Red, fontSize = 11.sp)
-            Text("${report.warn} 可疑", color = Amber, fontSize = 11.sp)
-            Text("${report.pass} 通过", color = Green, fontSize = 11.sp)
-            if (na > 0) Text("$na 待定", color = Gray, fontSize = 11.sp)
+            Text(stringResource(R.string.count_fail, report.fail), color = Red, fontSize = 11.sp)
+            Text(stringResource(R.string.count_warn, report.warn), color = Amber, fontSize = 11.sp)
+            Text(stringResource(R.string.count_pass, report.pass), color = Green, fontSize = 11.sp)
+            if (na > 0) Text(stringResource(R.string.count_na, na), color = Gray, fontSize = 11.sp)
         }
     }
+}
+
+private fun statusLabel(status: Status): Int = when (status) {
+    Status.FAIL -> R.string.status_fail
+    Status.WARN -> R.string.status_warn
+    Status.NA -> R.string.status_na
+    Status.PASS -> R.string.status_pass
 }
 
 @Composable
@@ -484,7 +498,7 @@ private fun CheckRow(item: ScanItem, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                CheckGuide.method(item),
+                CheckGuide.method(LocalContext.current, item),
                 color = Sub,
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -515,14 +529,14 @@ private fun DetailDialog(item: ScanItem, onClose: () -> Unit) {
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        if (item.status == Status.FAIL) "风险" else if (item.status == Status.WARN) "可疑" else if (item.status == Status.NA) "无法判定" else "通过",
+                        stringResource(statusLabel(item.status)),
                         color = statusColor(item.status),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Rounded.Close, contentDescription = "关闭", tint = Sub, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.close), tint = Sub, modifier = Modifier.size(18.dp))
                     }
                 }
                 Text(
@@ -541,13 +555,13 @@ private fun DetailDialog(item: ScanItem, onClose: () -> Unit) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 Spacer(Modifier.height(16.dp))
-                Label("检测手法")
-                Text(CheckGuide.method(item), color = Ink, fontSize = 13.sp, lineHeight = 20.sp)
+                Label(stringResource(R.string.method_label))
+                Text(CheckGuide.method(ctx, item), color = Ink, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(14.dp))
-                Label("原因")
-                Text(CheckGuide.reason(item), color = Ink, fontSize = 13.sp, lineHeight = 20.sp)
+                Label(stringResource(R.string.reason_label))
+                Text(CheckGuide.reason(ctx, item), color = Ink, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(14.dp))
-                Label("原始证据")
+                Label(stringResource(R.string.evidence_label))
                 Box(
                     Modifier.fillMaxWidth().heightIn(max = 180.dp)
                         .background(Tint, RoundedCornerShape(10.dp))
@@ -555,7 +569,7 @@ private fun DetailDialog(item: ScanItem, onClose: () -> Unit) {
                         .padding(12.dp),
                 ) {
                     Text(
-                        item.detail.ifBlank { "(无详情)" },
+                        item.detail.ifBlank { stringResource(R.string.no_detail) },
                         color = Color(0xFF374151),
                         fontSize = 11.5.sp,
                         lineHeight = 17.sp,
@@ -566,13 +580,20 @@ private fun DetailDialog(item: ScanItem, onClose: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
-                            clipboard.setText(AnnotatedString("${item.title}\n${item.id}\n\n检测手法：\n${CheckGuide.method(item)}\n\n原因：\n${CheckGuide.reason(item)}\n\n证据：\n${item.detail}"))
-                            Toast.makeText(ctx, "已复制", Toast.LENGTH_SHORT).show()
+                            clipboard.setText(
+                                AnnotatedString(
+                                    "${item.title}\n${item.id}\n\n" +
+                                        "${ctx.getString(R.string.method_label)}:\n${CheckGuide.method(ctx, item)}\n\n" +
+                                        "${ctx.getString(R.string.reason_label)}:\n${CheckGuide.reason(ctx, item)}\n\n" +
+                                        "${ctx.getString(R.string.evidence_label)}:\n${item.detail}",
+                                ),
+                            )
+                            Toast.makeText(ctx, ctx.getString(R.string.copied), Toast.LENGTH_SHORT).show()
                         },
                     ) {
                         Icon(Icons.Rounded.ContentCopy, contentDescription = null, tint = Sub, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(7.dp))
-                        Text("复制", color = Sub, fontSize = 12.sp)
+                        Text(stringResource(R.string.copy), color = Sub, fontSize = 12.sp)
                     }
                     Spacer(Modifier.weight(1f))
                     Button(
@@ -580,7 +601,7 @@ private fun DetailDialog(item: ScanItem, onClose: () -> Unit) {
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Color.White),
                         modifier = Modifier.height(40.dp),
-                    ) { Text("关闭", fontSize = 13.sp) }
+                    ) { Text(stringResource(R.string.close), fontSize = 13.sp) }
                 }
             }
         }
