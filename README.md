@@ -3,7 +3,11 @@
 Android 设备环境检测 App：一次性跑完 108 项检查，按风险优先级列出结果，点开每一项能看到
 检测手法、命中原因和原始证据。
 
-![EnvScan](docs/screenshot.png)
+| 总览 | 详情 |
+| --- | --- |
+| ![总览](docs/screenshot.png) | ![详情](docs/detail.png) |
+
+![其余检查](docs/passing.png)
 
 ## 能查什么
 
