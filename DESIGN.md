@@ -1,29 +1,37 @@
-# EnvScan 视觉设计（RootBeer 风格）
+# EnvScan visual design (RootBeer style)
 
-## 参考
+## Reference
 
-RootBeer 的检测结果页：顶部一个总评，下面是一列“通过 / 失败”的检查项，每项前面是绿色对勾或红色叉；
-点进去能看到这一项在查什么、为什么命中。EnvScan 沿用这套信息结构，但把结果拆成“风险与可疑 / 其余检查”，
-风险永远排在最前面。
+RootBeer's result screen: one verdict on top, a list of pass/fail checks below it, each with a
+green tick or a red cross, and tapping an item explains what it looks at and why it matched.
+EnvScan keeps that information structure but splits the results into "risks" and "other
+checks", with risks always first.
 
-## 四行 brief
+## Four-line brief
 
-- 主题：一台设备的环境体检。第一眼要看到 **环境异常 + 待处理数量 + 红色叉号**。
-- 版式：总评卡（状态图标 + 大标题 + 比例条 + 计数）→ 操作 → 风险列表 → 其余检查。
-- 颜色：`#F5F7FA` 画布 / `#FFFFFF` 列表 / `#111827` 正文 / `#6B7280` 次要 / `#DC2626` 风险 / `#D97706` 可疑 / `#16A34A` 通过。
-- 明确不做：深色霓虹、等宽满屏堆栈、彩色圆点、同尺寸卡片网格。
+- Theme: a health check for a device. The first thing you see is **abnormal + how many items
+  need attention + a red cross**.
+- Layout: verdict card (status icon + headline + ratio bar + counters) → action → risk list →
+  other checks.
+- Colour: `#F5F7FA` canvas / `#FFFFFF` list / `#111827` text / `#6B7280` secondary / `#DC2626`
+  risk / `#D97706` warning / `#16A34A` pass.
+- Explicitly avoided: dark neon, full-screen monospace stacks, coloured dots, uniform card grids.
 
-## 规则
+## Rules
 
-- 风险优先：FAIL + WARN 放第一组，FAIL 在前；PASS / NA 放第二组。
-- 一行只表达一件事：状态图标 + 标题 + 一句检测手法；详情不塞进列表。
-- 点击任意条目弹 Dialog，固定三段：**检测手法 / 原因 / 原始证据**。
-- 检测手法来自 `CheckGuide`：关键项写具体读什么，其余给组级手法；原因是本次结果 + 第一条证据。
-- 图标语义固定：红叉 = 风险，黄叹号 = 可疑，绿勾 = 通过，灰问号 = 无法判定。
-- 动效只保留扫描中的进度；列表不做逐行入场。
+- Risk first: FAIL + WARN form the first group with FAIL on top; PASS / NA form the second.
+- One line says one thing: status icon + title + a single line on how it is checked; details
+  stay out of the list.
+- Tapping any item opens a dialog with three fixed sections: **how it is checked / why / raw
+  evidence**.
+- The "how" text comes from `CheckGuide`: key items describe exactly what is read, the rest use
+  a per-group description; the "why" combines this run's status with the first evidence line.
+- Icon semantics are fixed: red cross = risk, amber exclamation = warning, green tick = pass,
+  grey question mark = undecidable.
+- Animation is limited to the progress bar while scanning; no per-row entrance animation.
 
-## 界面
+## Screens
 
-1. **Empty**：盾牌图标 + 大号 `108` + 一句话 + 开始扫描。
-2. **Report**：总评卡 → 重新扫描 / 共 108 项 → “风险与可疑 22”列表 → “其余检查 86”列表。
-3. **Detail**：风险状态 + 标题 + group/id + 检测手法 + 原因 + 原始证据 + 复制。
+1. **Empty**: shield icon + a large `108` + one sentence + start scan.
+2. **Report**: verdict card → scan again / 108 items → "Risks" list → "Other checks" list.
+3. **Detail**: status + title + group/id + how it is checked + why + raw evidence + copy.

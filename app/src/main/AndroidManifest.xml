@@ -23,7 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- isolatedProcess：跑在 isolated_app 域里，selinux_iso 才有隔离域可比 -->
+        <!-- isolatedProcess: runs in the isolated_app domain so selinux_iso has something to compare -->
         <service
             android:name=".IsolateService"
             android:exported="false"
@@ -33,7 +33,7 @@
             android:name=".TwinService"
             android:exported="false"
             android:process=":twin" />
-        <!-- useAppZygote：让系统拉起本应用的 app zygote，主进程再检查它 -->
+        <!-- useAppZygote: lets the system fork this app's app zygote so the main process can inspect it -->
         <service
             android:name=".ZygoteProbeService"
             android:exported="false"

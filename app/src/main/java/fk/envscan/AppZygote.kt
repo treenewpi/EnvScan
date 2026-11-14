@@ -4,11 +4,11 @@ import android.app.ZygotePreload
 import android.content.pm.ApplicationInfo
 
 /**
- * app zygote 的预加载入口。
+ * Preload entry point of the app zygote.
  *
- * 系统 fork 出 `<pkg>_zygote` 时会调用它，在 zygote 里把 native 库加载好；
- * 之后 useAppZygote 的 isolated service 就从这里 fork 出来。
- * 这一步是让 EnvScan 拥有一个“同 uid 的 zygote 进程”可检查的前提。
+ * The system calls it when forking `<pkg>_zygote`, which loads the native library
+ * inside the zygote; the isolated services that use useAppZygote are then forked
+ * from there. This is what gives EnvScan a zygote process of its own uid to inspect.
  */
 class AppZygote : ZygotePreload {
     override fun doPreload(appInfo: ApplicationInfo) {

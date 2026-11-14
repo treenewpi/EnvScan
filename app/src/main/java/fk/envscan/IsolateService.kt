@@ -5,13 +5,13 @@ import android.content.Intent
 import android.os.IBinder
 
 /**
- * 独立进程的服务进程。同一套 crc 检查在每个进程里各跑一遍，再把三份 bytesum
- * 互相比对（crc_locality）。
+ * Service running in a separate process. The same crc check runs once per process
+ * and the three byte sums are compared with each other (crc_locality).
  *
- * :iso 用 android:isolatedProcess="true"，跑在 isolated_app 域里，selinux_iso
- * 才有隔离域可比。
- * onCreate 里补 NoNewPrivs=1：AMS 拉起的 isolatedProcess 默认是 0，而标准 isolated
- * 进程是 1，不补就会把自己判成“隔离失效”。
+ * :iso uses android:isolatedProcess="true" and runs in the isolated_app domain, which
+ * is what selinux_iso needs for a meaningful comparison.
+ * onCreate raises NoNewPrivs to 1: an AMS-spawned isolatedProcess starts at 0 while a
+ * standard isolated process has 1, and without it the check flags our own process.
  */
 open class ProbeService : Service() {
     private val binder = object : IIsolate.Stub() {
@@ -39,8 +39,9 @@ class TwinService : ProbeService()
 
 /**
  * isolatedProcess + useAppZygote。
- * 绑定它会让系统拉起 app zygote（<pkg>_zygote，跑在 app_zygote 域、同 app uid），
- * 这个 zygote 的子进程地址空间就是 zygote 的，注入 zygote 的库会原样继承过来，
- * 正好用来判断 “zygote 行为异常 / 被注入”。
+ * Binding it makes the system fork this app's app zygote (<pkg>_zygote, app_zygote
+ * domain, same app uid). A child of that zygote inherits the zygote's address space,
+ * so libraries injected into the zygote show up there — exactly what the
+ * "zygote behaviour abnormal / injected" checks need.
  */
 class ZygoteProbeService : ProbeService()

@@ -11,16 +11,17 @@ import java.security.KeyStore
 import java.security.cert.X509Certificate
 
 /**
- * 那些“不能直接用共享 probe 表达”的条目。
+ * Checks that the shared probe library alone cannot express.
  *
- * 共享 probe 负责设备级技术点；这里补的是产品语义层检查：
- * - crypto / ART / init.rc / permission / su process / zygote；
- * - notification bar / manifest component graph / Play Integrity 本地判定 /
- *   SELinux policy 文件；
+ * The probes cover device-level techniques; this file adds the product-level ones:
+ * - crypto / ART / init.rc / permission / su process / zygote;
+ * - notification bar / manifest component graph / local Play Integrity /
+ *   SELinux policy file;
  * - Shamiko / Bootloader Spoofer / RVX / injection service /
- *   Zygisk exclusion / tombstone。
+ *   Zygisk exclusion / tombstone.
  *
- * 全部是 EnvScan 自己进程可执行的检查；读不到的设备数据会写进 detail，而不是直接伪造 PASS。
+ * Everything here runs inside the EnvScan process; data that cannot be read is
+ * written into the detail instead of being turned into a fake PASS.
  */
 object ExtraChecks {
 
@@ -158,8 +159,9 @@ object ExtraChecks {
         val policy = File("/sys/fs/selinux/policy").exists()
         val sysLabel = runCatching { String(Os.getxattr("/system", "security.selinux")) }.getOrDefault("")
         val shLabel = runCatching { String(Os.getxattr("/system/bin/sh", "security.selinux")) }.getOrDefault("")
-        // Android 12+ app 读不到 policyvers；有 policy 文件 + 正常 system_file/shell_exec
-        // 标签就说明 SELinux 策略在，不能因为 selinuxfs 被限制就报异常。
+    // Apps cannot read policyvers on Android 12+; a policy file with normal
+    // system_file / shell_exec labels means SELinux policy is in place, so a
+    // restricted selinuxfs is not a risk by itself.
         val fail = boot == "disabled" || (!policy && vers.isEmpty()) ||
             (sysLabel.isNotBlank() && !sysLabel.contains("system_file"))
         return item(
@@ -222,15 +224,17 @@ object ExtraChecks {
     }.getOrDefault(emptyList())
 
     /**
-     * “Zygote 行为异常 / Zygote 被注入” 不能靠枚举系统 zygote —— 普通 app 读不到
-     * /proc/<zygote>/cmdline（untrusted_app 对 zygote 域 getattr 就会被拒）。
+     * "Zygote behaviour abnormal / injected" cannot be answered by enumerating the
+     * system zygote: an ordinary app cannot read /proc/<zygote>/cmdline (untrusted_app
+     * is denied even getattr on the zygote domain).
      *
-     * 这里走 app zygote 这条路：manifest 里声明 zygotePreloadName + 一个
-     * isolatedProcess + useAppZygote 的服务。系统为它 fork 出 `<pkg>_zygote`（app_zygote 域、
-     * 同 app uid），服务进程再从那个 zygote fork 出来，于是：
-     *   - 服务进程自己的 maps 就是 zygote 的地址空间（注入 zygote 的库会一起继承过来）；
-     *   - 服务进程自己的 PPid 就是 app zygote 的 pid。
-     * 所以检查在“自己的子进程”里做，不需要跨域读别人的 /proc。
+     * So this goes through the app zygote instead: the manifest declares a
+     * zygotePreloadName plus an isolatedProcess + useAppZygote service. The system
+     * forks `<pkg>_zygote` (app_zygote domain, same app uid) and the service process
+     * is forked from it, which means:
+     *   - the service's own maps are the zygote address space (injected libs come along);
+     *   - the service's own PPid is the app zygote pid.
+     * The check therefore runs inside our own child, without reading anyone else's /proc.
      */
     private fun zygoteChildCtx(): String = ScanEngine.zygoteCtx
 
@@ -246,7 +250,7 @@ object ExtraChecks {
             )
         }
         val isIsolated = ctx.contains("isolated_app")
-        // app zygote 的子进程必须从 app zygote fork：PPid 应指向 <pkg>_zygote，而不是系统 zygote。
+        // A child of the app zygote must be forked from it: PPid should point at <pkg>_zygote.
         val ppidOk = pid > 0
         val fail = !isIsolated || !ppidOk
         return item(
@@ -276,8 +280,9 @@ object ExtraChecks {
         for (k in listOf("magisk", "lsposed", "zygisk", "riru", "frida", "libdobby", "shamiko")) {
             if (maps.contains(k, true)) hits += k
         }
-        // 子进程的地址空间是 app zygote fork 出来的：zygote 里被塞的库会原样继承。
-        // 正常只应有 /system、/apex、/vendor、/data/app/<自己> 下的库；其它路径就是外来注入。
+        // The child address space is forked from the app zygote, so anything injected into the
+        // zygote is inherited. Normally only /system, /apex, /vendor and /data/app/<self>
+        // libs should appear; anything else is foreign injection.
         val own = "fk.envscan"
         val foreign = soPaths(maps).filter { p ->
             !p.startsWith("/system/") && !p.startsWith("/apex/") && !p.startsWith("/vendor/") &&
@@ -300,7 +305,8 @@ object ExtraChecks {
         val listeners = Settings.Secure.getString(cr, "enabled_notification_listeners") ?: ""
         val overlay = runCatching { Settings.canDrawOverlays(ctx) }.getOrDefault(false)
         val policy = Settings.Secure.getString(cr, "enabled_notification_policy_access_packages") ?: ""
-        // MIUI/HyperOS 自带 xiaomi.barrage 通知监听，是系统组件；只对三方监听算风险。
+        // MIUI/HyperOS ships its own notification listener (xiaomi.barrage); only third-party
+        // listeners count as a risk.
         val nonSystem = nonSystemNotificationListeners(ctx, listeners)
         val fail = nonSystem.isNotEmpty() || overlay || policy.isNotBlank()
         return item(
@@ -318,7 +324,8 @@ object ExtraChecks {
         val pi = runCatching { pm.getPackageInfo(ctx.packageName, flags) }.getOrNull()
         val acts = pi?.activities?.map { it.name }?.toSet() ?: emptySet()
         val svcs = pi?.services?.map { it.name }?.toSet() ?: emptySet()
-        // EnvScan 的 manifest 只有这两个组件；多出来的就是被二次打包/注入的组件。
+        // The EnvScan manifest only declares these components; anything extra was repackaged
+        // or injected.
         val expectedActs = mutableSetOf("fk.envscan.MainActivity")
         if (BuildConfig.DEBUG) expectedActs += "androidx.compose.ui.tooling.PreviewActivity"
         val expectedSvcs = setOf(
@@ -366,8 +373,8 @@ object ExtraChecks {
             val p = props()
             val propLocked = p["ro.boot.flash.locked"] == "1" || p["ro.boot.vbmeta.device_state"] == "locked"
             val propGreen = p["ro.boot.verifiedbootstate"] == "green"
-            // Android 16 的 attestation 扩展偶尔解析不出 RootOfTrust（rot=null），
-            // 这时退回系统 boot 属性；只有 rot 明确说 unlocked 才判失败。
+            // The Android 16 attestation extension sometimes yields no RootOfTrust (rot=null);
+            // fall back to the system boot properties and only fail when rot says unlocked.
             val locked = if (rot != null) rot.deviceLocked == 1 else propLocked
             val verified = if (rot != null) rot.verifiedBootState == 0 else propGreen
             val fail = software || !locked || !verified
@@ -394,8 +401,8 @@ object ExtraChecks {
         val checkreq = read("/sys/fs/selinux/checkreqprot", 64).trim()
         val fsPresent = File("/sys/fs/selinux").exists()
         val boot = p["ro.boot.selinux"] ?: ""
-        // SELinux 上下文检查：
-        // 进程自己的 SELinux 域必须是 untrusted_app(_NN)，且上下文里不能带 su/magisk 之类的标记。
+        // SELinux context check: the process domain must be untrusted_app(_NN) and the
+        // context must not carry su/magisk style markers.
         val context = read("/proc/self/attr/current", 256).trim().trimEnd('\u0000')
         val domainOk = Regex("^u:r:untrusted_app(_\\d+)?:s0").containsMatchIn(context)
         val marks = listOf("magisk", ":su:", "shell", "system_app", "platform_app", "priv_app")
@@ -410,8 +417,9 @@ object ExtraChecks {
                 "build.selinux=$buildSelinux fs=$fsPresent\n" +
                 "context=$context domain_ok=$domainOk mark=${mark ?: "-"} " +
                 "policy_unreadable=$policyUnreadable",
-            // policy 文件读不到是常态（app 无 security_read_policy），此时用上下文判定，
-            // 不再拿“没数据”当 NA；只有上下文也拿不到才算不可判定。
+            // Not being able to read the policy file is normal (apps lack security_read_policy),
+            // so judge by the context instead of treating missing data as NA; only a missing
+            // context is undecidable.
             na = context.isEmpty() && policyUnreadable,
         )
     }
@@ -489,8 +497,9 @@ object ExtraChecks {
     }
 
     private fun zygiskExclusionCheck(): ScanItem {
-        // 没有 root 读不到 /data/adb 的排除列表；用“本进程是否被 Zygisk 注入”作为
-        // 可观测的等价信号：注入了说明排除列表没生效，没注入说明这一路是干净的。
+        // Without root the exclusion list in /data/adb is unreadable, so use whether this
+        // process is injected by Zygisk as the observable equivalent: injected means the
+        // exclusion list is not effective, clean means this path is fine.
         val maps = read("/proc/self/maps", 1 shl 20)
         val hit = listOf("zygisk", "libzygisk", "lsposed", "LSPHooker")
             .filter { maps.contains(it, true) }

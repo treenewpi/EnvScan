@@ -2280,10 +2280,10 @@ Probe probe_resetprop() {
     auto sysfp = prop("ro.system.build.fingerprint");
     auto venfp = prop("ro.vendor.build.fingerprint");
     auto bootfp = prop("ro.bootimage.build.fingerprint");
-    // OEM HyperOS/One UI 的 product/system/vendor fingerprint 本来就不相同
-    // （例如 Redmi/zorn vs Xiaomi/missi，vendor 还是旧基线），不能当 resetprop。
-    // 只保留 detail，真正的篡改由 build.prop 对比、ro.debuggable/secure、
-    // warranty_bit 和属性区 serial 判定。
+    // OEM builds (HyperOS / One UI) legitimately ship different product/system/vendor
+    // fingerprints, so a mismatch alone is not resetprop. Keep it as detail only; real
+    // tampering is decided by the build.prop comparison, ro.debuggable/secure,
+    // warranty_bit and the property-area serial.
     if (!fp.empty()) {
         if (!sysfp.empty() && sysfp != fp) p.detail += "note: system fp differs (OEM build split)\n";
         if (!venfp.empty() && venfp != fp) p.detail += "note: vendor fp differs (OEM build split)\n";

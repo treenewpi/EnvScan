@@ -22,23 +22,25 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * EnvScan 的 Java 半边只做两件事：
- *   1. 采集 Java 层能拿到、native 拿不到的事实，喂给 probe 库
- *      （包名 / Xposed 元数据 / KeyStore 证明链）；
- *   2. 展示 probe 库给出的技术项，以及 probe 库不覆盖的 PM 四路 / Settings 项。
+ * The Java half of EnvScan does two things:
+ *   1. collect the facts only the Java layer can see and feed them to the probe
+ *      library (package names / Xposed metadata / KeyStore attestation chain);
+ *   2. render the techniques returned by the probe library plus the
+ *      PackageManager and Settings checks it does not cover.
  *
- * 检测技术本身不在这里实现：唯一实现是 cpp/probes/，ID 就是 all_techniques() 里的 ID。
+ * The techniques themselves live in cpp/probes/; the ids are the ones returned by
+ * all_techniques().
  */
 object ScanEngine {
 
     /**
-     * app zygote（`<pkg>_zygote`）的 pid。由 useAppZygote 的 isolated service 报回 PPid，
-     * 主进程靠它去读同 uid 的 zygote 子进程，用来判断 zygote 是否被注入。
+     * pid of the app zygote (`<pkg>_zygote`), reported as PPid by the useAppZygote
+     * isolated service. The main process uses it to inspect the same-uid zygote child.
      */
     @Volatile
     var zygotePpid: Int = -1
 
-    /** app-zygote 子进程自己的 maps 与 SELinux 域。 */
+    /** maps and SELinux domain of the app-zygote child process. */
     @Volatile
     var zygoteMaps: String = ""
 
@@ -119,7 +121,7 @@ object ScanEngine {
     }
 
     /**
-     * Java 侧采集 + 喂 probe 库。必须在 nativeScan() 之前调用。
+     * Collect on the Java side and feed the probe library. Must run before nativeScan().
      */
     fun prepare(ctx: Context): List<ScanItem> {
         val hits = managerHits(ctx)
@@ -210,7 +212,7 @@ object ScanEngine {
         )
     }
 
-    // ApplistDetector 的 PM 四路：同一包在某一路被藏、另一路可见才是信号。
+    // Four PackageManager paths: a package hidden on one path but visible on another is the signal.
     private fun scanPmWays(ctx: Context): ScanItem {
         val pm = ctx.packageManager
         val direct = runCatching { pm.getInstalledPackages(0).map { it.packageName }.toSet() }
@@ -269,7 +271,7 @@ object ScanEngine {
         return listOf(
             ScanItem(
                 id = "debug.adb", group = "Debug", title = "USB debugging",
-                // ADB 是调试开关，不等于 root/篡改；给 WARN，避免正常测试机被判成“风险”。
+                // ADB is a debug switch, not root or tampering, so it is a WARN to keep test devices clean.
                 status = if (adb == 1) Status.WARN else Status.PASS,
                 detail = "Settings.Global.ADB_ENABLED=$adb", source = "java",
             ),
@@ -324,8 +326,8 @@ object ScanEngine {
         )
     }
 
-    // KeyStore 证明链只能在 Java 侧生成，结果喂给 probe_attestation /
-    // probe_aosp_key / probe_keybox，由 native 统一出 3 个技术项。
+        // The KeyStore chain can only be produced on the Java side; feed it to
+        // probe_attestation / probe_aosp_key / probe_keybox so native emits all three.
     private fun feedAttestation() {
         runCatching {
             val alias = "envscan-attest"
@@ -472,9 +474,9 @@ class IsolateClient(private val ctx: Context) {
         val tracerPid: Int,
         val isoCrc: String?,
         val twinCrc: String?,
-        /** app zygote（<pkg>_zygote）的 pid，由 useAppZygote 的 isolated service 报 PPid 得到。 */
+        /** pid of the app zygote (<pkg>_zygote), from the PPid of the useAppZygote service. */
         val zygotePpid: Int,
-        /** app-zygote 子进程自己的 maps / SELinux 域（继承自 zygote，注入痕迹会留在这里）。 */
+        /** maps / SELinux domain of the app-zygote child (inherited from the zygote). */
         val zygoteMaps: String,
         val zygoteCtx: String,
     )
@@ -499,9 +501,8 @@ class IsolateClient(private val ctx: Context) {
     }
 
     /**
-     * :iso / :twin 两个服务进程各跑一遍 crc，主进程拿到两份 blob 后
-     * set_proc_crc() 才能让 iso_crc / twin_crc / crc_locality 真正比对
-     * （ISO/TWIN crc 就是这个结构）。
+     * :iso and :twin each run the crc check; only after the main process receives both
+     * blobs can set_proc_crc() make iso_crc / twin_crc / crc_locality compare for real.
      */
     fun run(): Result {
         var snap: String? = null
@@ -522,8 +523,8 @@ class IsolateClient(private val ctx: Context) {
         bind(TwinService::class.java, latch) { twin ->
             twinCrc = runCatching { twin?.crcBlob() }.getOrNull()
         }
-        // 绑定 useAppZygote 的 isolated service 会让系统拉起 <pkg>_zygote；
-        // 服务进程的 PPid 就是那个 app zygote 的 pid。
+        // Binding the useAppZygote isolated service makes the system fork <pkg>_zygote; the
+        // service PPid is that app zygote pid.
         bind(ZygoteProbeService::class.java, latch) { zp ->
             zygotePpid = runCatching { zp?.ppid() ?: -1 }.getOrDefault(-1)
             zygoteMaps = runCatching { zp?.selfMaps() ?: "" }.getOrDefault("")

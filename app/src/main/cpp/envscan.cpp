@@ -88,20 +88,21 @@ std::string run_all() {
         if (i) o += ',';
         Probe p = rows[i].fn();
         const std::string id = rows[i].id;
-        // :iso 是 android:isolatedProcess="true"，
-        // 拿到 isolated_app 域就按 probe 的判定走；只有隔离进程根本没起来时才 NA。
+        // :iso runs as android:isolatedProcess="true"; when it reports an isolated_app
+        // domain the probe verdict is used, and only a missing process becomes NA.
         if (id == "selinux_iso") {
             const bool no_iso = p.detail.find("isolate se=-") != std::string::npos ||
                                 p.detail.find("bind_fail") != std::string::npos;
-            // 其余违规项（域不对 / uid 不在隔离段 / su 上下文 / seccomp=0）任一命中都算 FAIL。
+            // Any other violation (wrong domain / uid outside the isolated range / su context /
+            // seccomp=0) still counts as FAIL.
             const bool other_violation =
                 p.detail.find("isolate secontext is not isolated_app") != std::string::npos ||
                 p.detail.find("isolate uid not in isolated range") != std::string::npos ||
                 p.detail.find("twin isolated_app with illegal uid") != std::string::npos ||
                 p.detail.find("twin/isolate Seccomp=0") != std::string::npos ||
                 p.detail.find("secontext su") != std::string::npos;
-            // NoNewPrivs：由 app zygote fork 的进程继承 NNP=1；EnvScan 的 :iso
-            // 由 AMS 拉起，NNP 不继承。这一条对自家进程按 note 处理，不当作隔离失效。
+            // NoNewPrivs: processes forked from the app zygote inherit NNP=1, while :iso is
+            // spawned by AMS and does not. For our own process this is a note, not a violation.
             const bool nnp_only =
                 p.detail.find("isolate NoNewPrivs=0") != std::string::npos && !other_violation;
             if (no_iso) {
@@ -115,8 +116,8 @@ std::string run_all() {
             }
             continue;
         }
-        // iso/twin 通道没拿到快照时不能算 PASS：另一侧的 crc 是实跑过的，
-        // EnvScan 这里只是没数据。如实标 NA，避免“没证据=通过”。
+        // An empty iso/twin snapshot must not count as PASS: the other side really ran the
+        // crc check and we simply have no data. Report NA instead of "no evidence = pass".
         const bool crc_channel_empty =
             (id == "iso_crc" || id == "twin_crc" || id == "crc_locality") &&
             (p.detail.find("unavailable: empty") != std::string::npos ||
@@ -165,14 +166,14 @@ Java_fk_envscan_NativeBridge_nativeIsoSnapshot(JNIEnv* env, jclass) {
     return env->NewStringUTF(iso_snapshot().c_str());
 }
 
-// 在 :iso / :twin 进程里各跑一遍 crc 检查，把结果回给主进程。
+// Run the crc check inside the :iso / :twin processes and return it to the main process.
 extern "C" JNIEXPORT jstring JNICALL
 Java_fk_envscan_NativeBridge_nativeCrcBlob(JNIEnv* env, jclass) {
     return env->NewStringUTF(crc_report().c_str());
 }
 
-// AMS 拉起的 isolatedProcess 默认 NoNewPrivs=0；标准 isolated 进程是 1。
-// 补上，否则 selinux_iso 会把自己判成“隔离失效”。
+// AMS-spawned isolatedProcess starts with NoNewPrivs=0 while a standard isolated
+// process has 1. Set it, otherwise selinux_iso flags our own process as broken.
 extern "C" JNIEXPORT void JNICALL
 Java_fk_envscan_NativeBridge_nativeHardenIsolate(JNIEnv*, jclass) {
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);

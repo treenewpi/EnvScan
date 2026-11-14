@@ -368,7 +368,8 @@ private fun ReportBody(
 
 @Composable
 private fun Verdict(report: ScanReport, na: Int) {
-    // 只有 FAIL 才改变总评；WARN 在计数里体现，避免“只开 ADB”被判成异常。
+    // Only FAIL changes the verdict; WARN shows up in the counters so that, for example,
+            // merely having adb enabled is not reported as abnormal.
     val color = if (report.fail > 0) Red else Green
     val icon = if (report.fail > 0) Icons.Rounded.Cancel else Icons.Rounded.CheckCircle
     Column(
